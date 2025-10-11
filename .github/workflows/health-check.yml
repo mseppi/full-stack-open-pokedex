@@ -1,0 +1,17 @@
+name: Health Check
+
+on:
+  push: # First test on push before scheduling
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * *" # Every day at midnight
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health Check
+        uses: jtalk/url-health-check-action@b716ccb6645355dd9fcce8002ce460e5474f7f00
+        with:
+          url: https://full-stack-open-pokedex-cspo.onrender.com/
