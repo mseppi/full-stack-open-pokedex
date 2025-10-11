@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
 
 jobs:
   simple_deployment_pipeline:
@@ -26,5 +29,37 @@ jobs:
       - name: e2e tests
         run: npm run test:e2e
       - name: Trigger Deployment
+        if: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message || '', '#skip') }}
         run: curl https://api.render.com/deploy/${{
           secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }}
+      - name: Notify Discord on failure
+        uses: sarisia/actions-status-discord@v1
+        if: ${{ failure() && github.event_name == 'push' && !contains(github.event.head_commit.message || '', '#skip') }}
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          status: ${{ job.status }}
+          title: "Build failed :x:"
+          description: "Commit to ${{ github.repository }} by ${{ github.actor }} failed"
+      - name: Notify Discord on success
+        uses: sarisia/actions-status-discord@v1
+        if: ${{ success() && github.event_name == 'push' && !contains(github.event.head_commit.message || '', '#skip') }}
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          status: ${{ job.status }}
+          title: "Build succeeded :white_check_mark:"
+          description: "Commit to ${{ github.repository }} by ${{ github.actor }} succeeded"
+
+  tag_release:
+    needs: simple_deployment_pipeline
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message || '', '#skip') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.75.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BUMP: patch
